@@ -1,0 +1,14 @@
+venv/
+.vscode/
+output/
+
+data/ESC-50/
+data/urbansound/
+
+synthetic_scenes_real/audio/
+
+*.wav
+*.npz
+*.pth
+*.pt
+__pycache__/
