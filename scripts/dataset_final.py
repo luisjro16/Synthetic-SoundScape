@@ -15,8 +15,8 @@ OUTPUT_METADATA_FILE = "../synthetic_scenes_real/meta.csv"
 OUTPUT_FEATURES_FILE = "../synthetic_scenes_real/master_features.npz"
 DATA_LABEL = "../data/label.csv"
 
-N_PUROS_PER_CLASS = 750   
-N_HYBRID_PER_PAIR = 750
+N_PUROS_PER_CLASS = 1667   
+N_HYBRID_PER_PAIR = 1667
 SAMPLE_RATE = 32000
 DURATION_SAMPLES = SAMPLE_RATE * 5
 
