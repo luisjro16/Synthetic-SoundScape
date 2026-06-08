@@ -1,173 +1,186 @@
 # SoundScape Generator
 
-Este repositório contém experimentos relacionados à geração e análise de **paisagens sonoras ecológicas (soundscapes)**.
-Grande parte dos arquivos presentes no projeto corresponde a **testes, experimentos e aprendizado**, enquanto o **script principal funcional** é:
+This repository contains experiments related to the generation and analysis of **ecological soundscapes**.
+Most of the files in this project correspond to **tests, experiments, and learning**, while the **main functional script** is:
 
 ```
 scripts/dataset_final.py
+
 ```
 
-Esse script implementa um **pipeline completo para geração de cenas acústicas sintéticas** utilizando dados do dataset ESC-50 e validação automática com **PANNs (Pretrained Audio Neural Networks)**.
+This script implements a **complete pipeline for generating synthetic acoustic scenes** using data from the ESC-50 dataset and automatic validation with **PANNs (Pretrained Audio Neural Networks)**.
 
 ---
 
-# Objetivo
+# Objective
 
-O objetivo do script é gerar **paisagens sonoras sintéticas rotuladas**, combinando três categorias principais de som:
+The objective of the script is to generate **labeled synthetic soundscapes**, combining three main sound categories:
 
-* **Biofonia** → sons biológicos (animais, insetos, etc.)
-* **Antropofonia** → sons humanos ou urbanos
-* **Geofonia** → sons naturais não biológicos (vento, chuva, água)
+* **Biophony** → biological sounds (animals, insects, etc.)
+* **Anthropophony** → human or urban sounds
+* **Geophony** → non-biological natural sounds (wind, rain, water)
 
-Essas cenas são utilizadas para **criação de datasets para classificação de soundscapes ecológicos**.
-
----
-
-# Pipeline do Script
-
-O processo implementado em `dataset_final.py` segue as seguintes etapas:
-
-1. **Carregamento de metadados**
-
-   * Lê arquivos `.csv` contendo os rótulos do dataset ESC-50.
-   * Associa cada classe sonora a uma das três categorias de fonia.
-
-2. **Preparação das classes**
-
-   * Mapeamento das 527 classes detectadas pelo modelo PANNs para:
-
-     * Biofonia
-     * Antropofonia
-     * Geofonia
-
-3. **Geração de cenas acústicas sintéticas**
-
-O script gera diferentes tipos de cenas:
-
-### Cenas Puras
-
-Um único tipo dominante de fonia.
-
-Exemplo:
-
-```
-Biofonia dominante + ruído leve das outras classes
-```
-
-Distribuição típica:
-
-```
-60% – 90% classe dominante
-10% – 40% ruído de outras classes
-```
+These scenes are used to **create datasets for ecological soundscape classification**.
 
 ---
 
-### Cenas Híbridas
+# Script Pipeline
 
-Mistura de duas categorias dominantes.
+The process implemented in `dataset_final.py` follows these steps:
 
-Exemplo:
+1. **Metadata Loading**
+* Reads `.csv` files containing the ESC-50 dataset labels.
+* Associates each sound class with one of the three phony categories.
 
-```
-45% Biofonia
-45% Geofonia
-10% Antropofonia
-```
 
-Combinações geradas:
+2. **Class Preparation**
+* Mapping of the 527 classes detected by the PANNs model to:
+* Biophony
+* Anthropophony
+* Geophony
 
-* Biofonia + Antropofonia
-* Biofonia + Geofonia
-* Antropofonia + Geofonia
 
----
 
-4. **Validação automática com PANNs**
 
-Cada cena gerada é analisada por um modelo de **Sound Event Detection (PANNs)**.
+3. **Synthetic Acoustic Scene Generation**
 
-O modelo verifica se a cena realmente contém os padrões esperados.
+The script generates different types of scenes:
 
-Se a validação falhar:
+### Pure Scenes
 
-```
-arquivo é descartado
-nova cena é gerada
-```
+A single dominant phony type.
 
-Isso garante **qualidade no dataset final**.
-
----
-
-5. **Extração de features**
-
-O modelo PANNs gera **features temporais de 527 classes sonoras**.
-
-Essas features são convertidas para **3 canais principais**:
+Example:
 
 ```
-Biofonia
-Antropofonia
-Geofonia
-```
-
-O resultado final possui o formato:
+Dominant Biophony + light noise from other classes
 
 ```
-[tempo, 3 canais]
+
+Typical distribution:
+
+```
+60% – 90% dominant class
+10% – 40% noise from other classes
+
 ```
 
 ---
 
-6. **Exportação do dataset**
+### Hybrid Scenes
 
-O script gera três tipos de saída:
+Mixture of two dominant categories.
 
-### Áudio gerado
+Example:
+
+```
+45% Biophony
+45% Geophony
+10% Anthropophony
+
+```
+
+Generated combinations:
+
+* Biophony + Anthropophony
+* Biophony + Geophony
+* Anthropophony + Geophony
+
+---
+
+4. **Automatic Validation with PANNs**
+
+Each generated scene is analyzed by a **Sound Event Detection (PANNs)** model.
+
+The model verifies if the scene actually contains the expected patterns.
+
+If the validation fails:
+
+```
+file is discarded
+new scene is generated
+
+```
+
+This ensures **quality in the final dataset**.
+
+---
+
+5. **Feature Extraction**
+
+The PANNs model generates **temporal features for 527 sound classes**.
+
+These features are converted into **3 main channels**:
+
+```
+Biophony
+Anthropophony
+Geophony
+
+```
+
+The final result has the format:
+
+```
+[time, 3 channels]
+
+```
+
+---
+
+6. **Dataset Export**
+
+The script generates three types of output:
+
+### Generated Audio
 
 ```
 synthetic_scenes_real/audio/
+
 ```
 
-Arquivos `.wav` contendo as cenas sintéticas.
+`.wav` files containing the synthetic scenes.
 
 ---
 
-### Metadados
+### Metadata
 
 ```
 synthetic_scenes_real/meta.csv
+
 ```
 
-Contém:
+Contains:
 
 ```
 filename
 scene_label
+
 ```
 
 ---
 
-### Features para treinamento
+### Training Features
 
 ```
 synthetic_scenes_real/master_features_all.npz
-```
-
-Esse arquivo contém:
 
 ```
-X → features extraídas
-y → rótulos das cenas
-filenames → identificação dos arquivos
+
+This file contains:
+
+```
+X → extracted features
+y → scene labels
+filenames → file identification
+
 ```
 
 ---
 
-# Estrutura mínima esperada
+# Expected Directory Structure
 
-Para executar o script, o projeto deve possuir uma estrutura semelhante a:
+To run the script, the project must have a structure similar to:
 
 ```
 project/
@@ -183,13 +196,14 @@ project/
 │   └── esc50_label.csv
 │
 └── synthetic_scenes_real
+
 ```
 
 ---
 
-# Dependências
+# Dependencies
 
-Principais bibliotecas utilizadas:
+Main libraries used:
 
 ```
 librosa
@@ -199,53 +213,57 @@ torch
 soundfile
 tqdm
 panns-inference
+
 ```
 
-Instalação recomendada:
+Recommended installation:
 
 ```
 pip install librosa numpy pandas torch soundfile tqdm panns-inference
+
 ```
 
 ---
 
-# Execução
+# Execution
 
-Para gerar o dataset sintético:
+To generate the synthetic dataset:
 
 ```
 python scripts/dataset_final.py
+
 ```
 
-O script irá:
+The script will:
 
-1. Carregar os dados do ESC-50
-2. Gerar cenas sintéticas
-3. Validar com PANNs
-4. Extrair features
-5. Salvar o dataset final
+1. Load ESC-50 data
+2. Generate synthetic scenes
+3. Validate with PANNs
+4. Extract features
+5. Save the final dataset
 
 ---
 
-# Observação
+# Note
 
-Este repositório contém vários arquivos adicionais relacionados a:
+This repository contains several additional files related to:
 
-* experimentos
-* testes
+* experiments
+* tests
 * notebooks
-* scripts auxiliares
+* auxiliary scripts
 
-Esses arquivos **não fazem parte do pipeline principal** e foram mantidos apenas para fins de estudo e desenvolvimento.
+These files **are not part of the main pipeline** and have been kept solely for study and development purposes.
 
-O **único script consolidado do projeto atualmente é**:
+The **only consolidated script in the project currently is**:
 
 ```
 scripts/dataset_final.py
+
 ```
 
 ---
 
-# Licença
+# License
 
-Uso acadêmico e experimental.
+Academic and experimental use.

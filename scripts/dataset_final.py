@@ -39,18 +39,18 @@ for i, label_name in enumerate(labels):
     elif categoria == 'Geofonia':
         geo_indices.append(i)
 
-#  (VALIDAÇÃO E CONVERSÃO) 
+#  (VALIDATION AND CONVERSION) 
 
 def convert_to_3_channels(features_527, bio_idxs, antro_idxs, geo_idxs):
-    """Converte a saída bruta do PANNs (527) para as 3 Fonias."""
-    # .max(axis=1) pega o valor máximo daquele grupo de colunas para cada frame
+    """Converts raw PANNs output (527) to the 3 Phonies."""
+    # .max(axis=1) gets the maximum value of that column group for each frame
     p_bio = features_527[:, bio_idxs].max(axis=1)
     p_antro = features_527[:, antro_idxs].max(axis=1)
     p_geo = features_527[:, geo_idxs].max(axis=1)
     return np.stack([p_bio, p_antro, p_geo], axis=1)
 
 def validate_pure(features_527, target_idx, bio_idxs, antro_idxs, geo_idxs):
-    """Valida se existe APENAS UM dominantes claro."""
+    """Validates if there is ONLY ONE clear dominant class."""
     p_bio = features_527[:, bio_idxs].max()
     p_antro = features_527[:, antro_idxs].max()
     p_geo = features_527[:, geo_idxs].max()
@@ -63,7 +63,7 @@ def validate_pure(features_527, target_idx, bio_idxs, antro_idxs, geo_idxs):
     return False
 
 def validate_hybrid(features_527, idx_A, idx_B, idx_Noise, bio_idxs, antro_idxs, geo_idxs):
-    """Valida se existem DOIS dominantes claros."""
+    """Validates if there are TWO clear dominant classes."""
     p_bio = features_527[:, bio_idxs].max()
     p_antro = features_527[:, antro_idxs].max()
     p_geo = features_527[:, geo_idxs].max()
@@ -82,15 +82,15 @@ def load_audio(p):
         if len(s) < DURATION_SAMPLES: s = np.pad(s, (0, DURATION_SAMPLES-len(s)))
         else: s = s[:DURATION_SAMPLES]
         
-        # Normalização RMS para garantir que 10% de volume seja realmente 10% de energia
+        # RMS normalization to ensure that 10% volume is actually 10% energy
         rms = np.sqrt(np.mean(s**2)) + 1e-10
         return s * (0.1 / rms)
     except: return np.zeros(DURATION_SAMPLES)
 
 def generate_clean_mix(target_class, file_map, output_filename):
     """
-    Gera um mix onde a 'target_class' tem OBRIGATORIAMENTE entre 60% e 90% de presença.
-    O restante é dividido entre ruído das outras classes.
+    Generates a mix where the 'target_class' MUST have between 60% and 90% presence.
+    The rest is divided as noise among the other classes.
     """
     final_signal = np.zeros(DURATION_SAMPLES)
     
@@ -108,7 +108,6 @@ def generate_clean_mix(target_class, file_map, output_filename):
             s = load_audio(f)
             final_signal += s * proportions[category]
             
-
     max_val = np.max(np.abs(final_signal))
     if max_val > 1.0: final_signal /= max_val
     sf.write(output_filename, final_signal, SAMPLE_RATE)
@@ -116,7 +115,7 @@ def generate_clean_mix(target_class, file_map, output_filename):
 
 def generate_hybrid_mix(class_A, class_B, file_map, output_filename):
     """
-    Gera uma mistura híbrida: 45% A + 45% B + 10% Ruído C
+    Generates a hybrid mix: 45% A + 45% B + 10% Noise C
     """
     final_signal = np.zeros(DURATION_SAMPLES)
     
@@ -140,7 +139,7 @@ def generate_hybrid_mix(class_A, class_B, file_map, output_filename):
     return proportions
 
 def generate_all_mix(file_map, output_filename):
-    """Gera uma mistura ~33% de cada classe."""
+    """Generates a mix with ~33% of each class."""
     final_signal = np.zeros(DURATION_SAMPLES)
     
     raw_props = np.random.dirichlet((10, 10, 10)) 
@@ -162,7 +161,7 @@ def generate_all_mix(file_map, output_filename):
     return proportions
 
 def validate_all(features_527, bio_idxs, antro_idxs, geo_idxs):
-    """Valida se as TRÊS classes estão presentes."""
+    """Validates if all THREE classes are present."""
     p_bio = features_527[:, bio_idxs].max()
     p_antro = features_527[:, antro_idxs].max()
     p_geo = features_527[:, geo_idxs].max()
@@ -173,8 +172,14 @@ def validate_all(features_527, bio_idxs, antro_idxs, geo_idxs):
 
 def run_master_factory(file_map):
     
-    # Inicializa PANNs
-    print("Iniciando Monitor PANNs...")
+    # Initializing counters for the Rejection Rate
+    total_attempts_pure = 0
+    total_accepted_pure = 0
+    total_attempts_hybrid = 0
+    total_accepted_hybrid = 0
+    
+    # Initialize PANNs
+    print("Starting PANNs Monitor...")
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     monitor = SoundEventDetection(checkpoint_path=None, device=device)
     
@@ -183,16 +188,18 @@ def run_master_factory(file_map):
     filenames_list = []
     labels_list = [] 
     
-    # --- DADOS PUROS 
-    print("\n>>> Cenas Puras")
+    # --- PURE DATA 
+    print("\n>>> Pure Scenes")
     pure_classes = {0: 'bio', 1: 'antro', 2: 'geo'}
     
     for label_code, name in pure_classes.items():
-        print(f" -> Gerando {name.upper()}...")
+        print(f" -> Generating {name.upper()}...")
         count = 0
         pbar = tqdm(total=N_PUROS_PER_CLASS)
         
         while count < N_PUROS_PER_CLASS:
+            total_attempts_pure += 1 
+            
             fname = f"pure_{name}_{count:04d}.wav"
             fpath = os.path.join(OUTPUT_AUDIO_DIR, fname)
             
@@ -206,13 +213,11 @@ def run_master_factory(file_map):
                 with torch.no_grad(): 
                     output = monitor.inference(tensor)
                 
-                # Verifica se é dict (padrão panns_inference)
                 if isinstance(output, dict) and 'framewise_output' in output:
                     raw_array = output['framewise_output'] 
                 else:
                     raw_array = output 
                 
-                # Remove dimensão do batch 
                 feat_527 = raw_array[0] 
                 
                 if validate_pure(feat_527, label_code, bio_indices, antro_indices, geo_indices):
@@ -223,6 +228,7 @@ def run_master_factory(file_map):
                     
                     metadata.append({'filename': fname, 'scene_label': label_code})
                     count += 1
+                    total_accepted_pure += 1 
                     pbar.update(1)
                 else:
                     os.remove(fpath) 
@@ -230,8 +236,8 @@ def run_master_factory(file_map):
                 if os.path.exists(fpath): os.remove(fpath)
         pbar.close()
 
-    # DADOS HÍBRIDOS (3, 4, 5) 
-    print("\n>>> Cenas Híbridas")
+    # --- HYBRID DATA (3, 4, 5) 
+    print("\n>>> Hybrid Scenes")
     hybrids = [
         ('bio', 'antro', 3, 0, 1, 2),
         ('bio', 'geo',   4, 0, 2, 1),
@@ -239,18 +245,19 @@ def run_master_factory(file_map):
     ]
     
     for c1, c2, label, idxA, idxB, idxN in hybrids:
-        print(f" -> Gerando {c1.upper()} + {c2.upper()}...")
+        print(f" -> Generating {c1.upper()} + {c2.upper()}...")
         count = 0
         pbar = tqdm(total=N_HYBRID_PER_PAIR)
         
         while count < N_HYBRID_PER_PAIR:
+            total_attempts_hybrid += 1 
+            
             fname = f"hybrid_{c1}_{c2}_{count:04d}.wav"
             fpath = os.path.join(OUTPUT_AUDIO_DIR, fname)
 
             if not os.path.exists(fpath):
                 generate_hybrid_mix(c1, c2, file_map, fpath)
             
-            # Valida
             try:
                 y_audio, _ = librosa.load(fpath, sr=32000, mono=True)
                 tensor = torch.tensor(y_audio[None, :]).to(device)
@@ -273,6 +280,7 @@ def run_master_factory(file_map):
                     
                     metadata.append({'filename': fname, 'scene_label': label})
                     count += 1
+                    total_accepted_hybrid += 1 
                     pbar.update(1)
                 else:
                     os.remove(fpath)
@@ -280,49 +288,8 @@ def run_master_factory(file_map):
                 if os.path.exists(fpath): os.remove(fpath)
         pbar.close()
         
-    # DADOS COMPLETOS (6) 
-    print("\n>>> Cena Completa")
-    print("Pulando")
-    # count = 0
-    # pbar = tqdm(total=N_HYBRID_PER_PAIR)
-        
-    # while count < N_HYBRID_PER_PAIR:
-    #     fname = f"complete_{count:04d}.wav"
-    #     fpath = os.path.join(OUTPUT_AUDIO_DIR, fname)
-
-    #     if not os.path.exists(fpath):
-    #         generate_all_mix(file_map, fpath)
-        
-    #     # Valida
-    #     try:
-    #         y_audio, _ = librosa.load(fpath, sr=32000, mono=True)
-    #         tensor = torch.tensor(y_audio[None, :]).to(device)
-            
-    #         with torch.no_grad(): 
-    #             output = monitor.inference(tensor)
-            
-    #         if isinstance(output, dict) and 'framewise_output' in output:
-    #             raw_array = output['framewise_output']
-    #         else:
-    #             raw_array = output
-            
-    #         feat_527 = raw_array[0] 
-            
-    #         if validate_all(feat_527, bio_indices, antro_indices, geo_indices):
-    #             feat_3ch = convert_to_3_channels(feat_527, bio_indices, antro_indices, geo_indices)
-    #             features_list.append(feat_3ch)
-    #             filenames_list.append(fname)
-    #             labels_list.append(6)
-                
-    #             metadata.append({'filename': fname, 'scene_label': 6})
-    #             count += 1
-    #             pbar.update(1)
-    #         else:
-    #             os.remove(fpath)
-    #     except Exception as e:
-    #         if os.path.exists(fpath): os.remove(fpath)
-    pbar.close()
-
+    print("\n>>> Complete Scene")
+    print("Skipping")
 
     pd.DataFrame(metadata).to_csv(OUTPUT_METADATA_FILE, index=False)
     
@@ -338,7 +305,23 @@ def run_master_factory(file_map):
         y=np.array(labels_list, dtype=np.int32),
         filenames=np.array(filenames_list)
     )
-    print(f"Salvo em {OUTPUT_FEATURES_FILE}")
+    print(f"Saved to {OUTPUT_FEATURES_FILE}")
+    
+    # FINAL REPORT 
+    total_attempts_all = total_attempts_pure + total_attempts_hybrid
+    total_accepted_all = total_accepted_pure + total_accepted_hybrid
+    
+    rejeicao_pura = ((total_attempts_pure - total_accepted_pure) / total_attempts_pure) * 100 if total_attempts_pure > 0 else 0
+    rejeicao_hibrida = ((total_attempts_hybrid - total_accepted_hybrid) / total_attempts_hybrid) * 100 if total_attempts_hybrid > 0 else 0
+    rejeicao_total = ((total_attempts_all - total_accepted_all) / total_attempts_all) * 100 if total_attempts_all > 0 else 0
+
+    print("\n" + "="*50)
+    print(" DATA FOR PAPER TABLE 1 (REJECTION RATE)")
+    print("="*50)
+    print(f"Clear Dominance: Generated={total_attempts_pure} | Accepted={total_accepted_pure} | Rejection: {rejeicao_pura:.1f}%")
+    print(f"Competition:       Generated={total_attempts_hybrid} | Accepted={total_accepted_hybrid} | Rejection: {rejeicao_hibrida:.1f}%")
+    print(f"Total:             Generated={total_attempts_all} | Accepted={total_accepted_all} | Rejection: {rejeicao_total:.1f}%")
+    print("="*50 + "\n")
     
 
 if __name__ == "__main__":
